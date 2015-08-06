@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/pprof"
 	"testing"
+	"time"
 )
 
 var (
@@ -189,6 +191,14 @@ func customReader() ([]byte, int) {
 	return b, n
 }
 
+var data []byte
+
+var avioHandlers = &AVIOHandlers{WritePacket: customWriter}
+
+func customWriter(b []byte) {
+	data = append(data, b...)
+}
+
 func TestAVIOContext(t *testing.T) {
 	ictx := NewCtx()
 
@@ -211,6 +221,60 @@ func TestAVIOContext(t *testing.T) {
 
 	ictx.CloseInputAndRelease()
 
+}
+
+func newInputOutput(t *testing.T) (*FmtCtx, *FmtCtx) {
+	inputCtx, err := NewInputCtx(inputSampleFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outputCtx, err := NewOutputCtxWithFormatName("", "mpegts")
+	if err != nil {
+		log.Fatalf("Error making new output context at %s: %v", err)
+	}
+
+	avioCtx, err := NewAVIOContext(outputCtx, avioHandlers)
+	if err != nil {
+		log.Fatalf("Error making avio ctx: %v")
+	}
+	defer avioCtx.Release()
+
+	outputCtx.SetPb(avioCtx)
+
+	cc, _ := inputCtx.GetBestStream(AVMEDIA_TYPE_VIDEO)
+
+	if _, err := outputCtx.AddStreamWithCodeCtx(cc.CodecCtx()); err != nil {
+		log.Fatalf("Error adding new stream to output file %s: %v", err)
+	}
+
+	if err := outputCtx.WriteHeader(); err != nil {
+		log.Fatalf("Error making stream for output file: %v", err)
+	}
+
+	return inputCtx, outputCtx
+}
+
+func TestAVIOContextWriter(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		log.Printf("Iter %d", i)
+		time.Sleep(time.Second * 10)
+		inputCtx, outputCtx := newInputOutput(t)
+		for packet := range inputCtx.GetNewPackets() {
+			outputCtx.WritePacket(packet)
+			Release(packet)
+		}
+		// Free after close
+		inputCtx.CloseInputAndRelease()
+		inputCtx.Free()
+
+		outputCtx.CloseOutputAndRelease()
+		//outputCtx.Free()
+
+		data = make([]byte, 0)
+	}
+
+	pprof.Lookup("heap").WriteTo(os.Stderr, 2)
 }
 
 func ExampleNewAVIOContext(t *testing.T) {
