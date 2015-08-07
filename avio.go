@@ -22,6 +22,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"log"
 	"unsafe"
 )
 
@@ -148,4 +149,11 @@ func seekCallBack(opaque unsafe.Pointer, offset C.int64_t, whence C.int) C.int64
 	}
 
 	return C.int64_t(handlers.Seek(int64(offset), int(whence)))
+}
+
+func FreeBuf(buf []byte) {
+	log.Printf("Buf: %X, %d", buf, len(buf))
+	//	if unsafe.Pointer(&buf) != unsafe.Pointer(uintptr(0)) {
+	//		C.free(unsafe.Pointer(&buf))
+	//	}
 }

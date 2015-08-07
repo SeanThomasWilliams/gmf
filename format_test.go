@@ -6,9 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/debug"
 	"runtime/pprof"
 	"testing"
-	"time"
 )
 
 var (
@@ -17,6 +17,10 @@ var (
 	inputSampleWidth     int    = 320
 	inputSampleHeight    int    = 200
 )
+
+func init() {
+	log.Printf("Max Threads: %d", debug.SetMaxThreads(10))
+}
 
 func assert(i interface{}, err error) interface{} {
 	if err != nil {
@@ -196,7 +200,8 @@ var data []byte
 var avioHandlers = &AVIOHandlers{WritePacket: customWriter}
 
 func customWriter(b []byte) {
-	data = append(data, b...)
+	//data = append(data, b...)
+	FreeBuf(b)
 }
 
 func TestAVIOContext(t *testing.T) {
@@ -256,20 +261,18 @@ func newInputOutput(t *testing.T) (*FmtCtx, *FmtCtx) {
 }
 
 func TestAVIOContextWriter(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	maxNum := 1
+	for i := 0; i < maxNum; i++ {
 		log.Printf("Iter %d", i)
-		time.Sleep(time.Second * 10)
 		inputCtx, outputCtx := newInputOutput(t)
 		for packet := range inputCtx.GetNewPackets() {
 			outputCtx.WritePacket(packet)
 			Release(packet)
+			break
 		}
 		// Free after close
 		inputCtx.CloseInputAndRelease()
-		inputCtx.Free()
-
 		outputCtx.CloseOutputAndRelease()
-		//outputCtx.Free()
 
 		data = make([]byte, 0)
 	}

@@ -1,0 +1,6 @@
+Just make one output byte stream.
+It should write the packet bytes to one place
+FFMPEG should take care of the PAT/PMT stuff, hopefully before the keyframe. Otherwise it should still be contiguous
+video.
+Just keep writing out the packet bytes to the write callback, then to cassandra. Don't close the "file" anymore since
+its in memory.
